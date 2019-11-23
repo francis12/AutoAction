@@ -365,6 +365,9 @@ class BaseOperate(object):
         finally:
             return flag
 
+    def lanch_app(self, app=None):
+        self.driver.start_activity('com.sankuai.meituan.takeoutnew', 'com.sankuai.meituan.takeoutnew.ui.page.boot.WelcomeActivity')
+
 
 
 if __name__ == '__main__':

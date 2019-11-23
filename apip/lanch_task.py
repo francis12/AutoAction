@@ -1,4 +1,4 @@
-import time, random, traceback, logging
+import time, random, traceback, logging, os, json
 from appium import webdriver
 from selenium.webdriver.common.by import By
 
@@ -8,8 +8,8 @@ desired_caps = {}
 desired_caps['platformName'] = 'Android'  # 系统名称
 desired_caps['platformVersion'] = '8.0.0'  # 系统的版本号
 desired_caps['deviceName'] = '34882369'  # 设备名称，这里是虚拟机，这个没有严格的规定
-# desired_caps['platformVersion'] = '5.1.1'  # 系统的版本号
-# desired_caps['deviceName'] = '127.0.0.1:62001'
+# desired_caps['platformVersion'] = '6.0'  # 系统的版本号
+# desired_caps['deviceName'] = '127.0.0.1:7555'
 desired_caps['automationName'] = 'uiautomator2'
 desired_caps['appPackage'] = 'com.sankuai.meituan.takeoutnew'  # APP包名
 desired_caps['appActivity'] = 'com.sankuai.meituan.takeoutnew.ui.page.boot.WelcomeActivity'  # APP入口的activity
@@ -25,6 +25,8 @@ base_operate = BaseOperate(driver)
 
 class MeiTuanTask:
 
+    Cache = []
+    app_state = True
     def start_item_task(self, exists_memch):
         groups = driver.find_elements_by_id("com.sankuai.meituan.takeoutnew:id/parent")
         find_new = False
@@ -57,71 +59,85 @@ class MeiTuanTask:
                         exists_memch.append(memchant_name)
                         break
                     # base_operate.wait_element(60, By.CLASS_NAME, "android.widget.EditText", "发送消息窗口未找到")
-                    driver.find_element_by_class_name("android.widget.EditText").send_keys(memchant_name + " 你好,消息由机器人发送，勿回复打扰见谅！")
+                    driver.find_element_by_class_name("android.widget.EditText").send_keys(memchant_name + " hello")
                     driver.find_element_by_class_name("android.widget.Button").click()
             except Exception as e:
                 pass
             finally:
+                back_count = 1
                 while True:
                     if not base_operate.isElement("id", "com.sankuai.meituan.takeoutnew:id/parent"):
+                        if back_count > 18:
+                            self.app_state = False
+                            break
                         base_operate.back()
+                        back_count = back_count + 1
                         print("后退")
                     else:
                         break
+                    print("backCount:" + str(back_count))
         return find_new
 
     def startSendMsgTask(self):
-        print("collected")
-        time.sleep(random.uniform(0.5, 1.5))
-        ad_exist = base_operate.isElement("id", "com.sankuai.meituan.takeoutnew:id/close")
-        if ad_exist:
-            ads = driver.find_element_by_id("com.sankuai.meituan.takeoutnew:id/close")
-            ads.click()
-        base_operate.swipeUp(100)
-        # base_operate.wait_element(60, By.ID, "com.sankuai.meituan.takeoutnew:id/parent", "商家列表页未找到")
-        # groups = driver.find_elements_by_class_name("android.view.ViewGroup")
-        # 每次处理一个商家，下拉370 ，保存到已处理列表
-        while True:
-            if not base_operate.isElement("id", "com.sankuai.meituan.takeoutnew:id/parent"):
-                base_operate.swipeLessUp()
-                print("首次启动向上滑动")
-            else:
-                break
-        exits_memch = []
-        while True:
-            is_task_new = self.start_item_task(exits_memch)
-            if not is_task_new:
-                print("未找到新任务，向上滑动")
-                # 滑动以找到新任务
-                base_operate.swipeLess2Up()
-                # self.find_new_group(exits_memch)
-            else:
-                print("已发送商家数:{},详情:{}".format(len(exits_memch), exits_memch))
+        try:
+            print("collected")
+            time.sleep(random.uniform(5, 8))
+            ad_exist = base_operate.isElement("id", "com.sankuai.meituan.takeoutnew:id/close")
+            if ad_exist:
+                ads = driver.find_element_by_id("com.sankuai.meituan.takeoutnew:id/close")
+                ads.click()
+            base_operate.swipeUp(100)
+            # base_operate.wait_element(60, By.ID, "com.sankuai.meituan.takeoutnew:id/parent", "商家列表页未找到")
+            # groups = driver.find_elements_by_class_name("android.view.ViewGroup")
+            # 每次处理一个商家，下拉370 ，保存到已处理列表
+            while True:
+                if not base_operate.isElement("id", "com.sankuai.meituan.takeoutnew:id/parent"):
+                    base_operate.swipeLessUp()
+                    print("首次启动向上滑动")
+                else:
+                    break
+            while True:
+                is_task_new = self.start_item_task(self.Cache)
+                if not self.app_state:
+                    self.app_state = True
+                    # 启动APP
+                    base_operate.lanch_app()
+                    self.startSendMsgTask()
+                if not is_task_new:
+                    print("未找到新任务，向上滑动")
+                    # 滑动以找到新任务
+                    base_operate.swipeLess2Up()
+                    # self.find_new_group(exits_memch)
+                else:
+                    print("已发送商家数:{},详情:{}".format(len(self.Cache), self.Cache))
+                self.flush_cache_file()
+        except:
+            pass
+        finally:
+            self.startSendMsgTask()
 
-    # def find_new_group(self, exits_memch):
-    #     is_found = False
-    #     first_run = True
-    #     while first_run or is_found:
-    #         first_run = False
-    #         base_operate.swipeLessUp()
-    #         time.sleep(random.uniform(0.5, 1.5))
-    #         groups = driver.find_elements_by_id("com.sankuai.meituan.takeoutnew:id/parent")
-    #         for group in groups:
-    #             try:
-    #                 print("displayed:{},enabled:{}".format(group.is_displayed(), group.is_enabled()))
-    #                 text_view = group.find_element_by_id("com.sankuai.meituan.takeoutnew:id/textview_poi_name")
-    #                 memchant_name = text_view.get_attribute('text')
-    #                 if memchant_name in exits_memch:
-    #                     continue
-    #                 else:
-    #                     is_found = True
-    #                     break
-    #             except Exception as err:
-    #                 traceback.print_exc()
-    #                 print("err find new group")
+    def load_cache_from_file(self, file='cache'):
+        if os.path.exists(file):
+            with open(file, 'r', encoding='utf-8') as f:
+                file = f.read()
+            print(file)
+            self.Cache = json.loads(file)
+
+    def flush_cache_file(self, file='cache'):
+        json_str = json.dumps(self.Cache)
+        cache_file = open(file, 'w', encoding='utf-8')
+        cache_file.write(json_str)
+        cache_file.close()
+
 
 
 
 if __name__ == '__main__':
     task = MeiTuanTask()
-    task.startSendMsgTask()
+    task.load_cache_from_file()
+    curTime = time.strftime("%Y-%m-%d %H-%M-%S", time.localtime())
+    print(curTime)
+    if curTime > "2019-11-23 15-13-13":
+        print("错误的运行")
+    else:
+        task.startSendMsgTask()
